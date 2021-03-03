@@ -1,0 +1,96 @@
+
+<html>
+  <head>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script type="text/javascript">
+      google.charts.load('current', {'packages':['corechart']});
+      google.charts.setOnLoadCallback(drawChart);
+
+      // Assuming our candles are for 5 minutes
+      const kNumSecondsInCandle = 5 * 60;
+
+      const CANDLE_LABEL = 0;
+      const CANDLE_MIN = 1;
+      const CANDLE_OPEN = 2;
+      const CANDLE_CLOSE = 3;
+      const CANDLE_MAX = 4;
+
+      // Generates random walk with `num_points` points, where every next step is uniformly distributed with mean `mean` and sigma `sigma`
+      function generateRandomWalk(num_points, starting_value, mean, sigma) {
+        var result = [];
+        var current_value = starting_value;
+        for (var i = 0; i < num_points; i += 1) {
+          result.push(current_value);
+          current_value += mean;
+          current_value += (Math.random() - 0.5) * Math.pow(12, 0.5) * sigma
+        }
+        return result;
+      }
+
+      // Generates candles for `data_points`, assuming there are `num_points_in_candle` in each candle.
+      function generateCandles(data_points, num_points_in_candle) {
+        var result = [];
+        var current_candle = null;
+        for (var i = 0; i < data_points.length; i += 1) {
+          if (i % num_points_in_candle == 0) {
+            current_candle = ['', data_points[i], data_points[i], data_points[i], data_points[i]];
+            result.push(current_candle);
+          }
+
+          current_candle[CANDLE_CLOSE] = data_points[i];
+          current_candle[CANDLE_MIN] = Math.min(current_candle[CANDLE_MIN], data_points[i]);
+          current_candle[CANDLE_MAX] = Math.max(current_candle[CANDLE_MAX], data_points[i]);
+        }
+        return result;
+      }
+
+  function drawChart() {
+    $.getJSON( "real_stonks/2021-02-01", function( real_candles ) {
+        var real_data_table = google.visualization.arrayToDataTable(real_candles, /*opt_firstRowIsData=*/true);
+
+        var chart_options = {
+          legend:'none'
+        };
+        var real_chart = new google.visualization.CandlestickChart(document.getElementById('real_chart_div'));
+        real_chart.draw(real_data_table);
+
+        // Generate fake chart data
+        var chart_min = real_candles[0][CANDLE_MIN];
+        var chart_max = real_candles[0][CANDLE_MAX];
+        var chart_open = real_candles[0][CANDLE_OPEN];
+        var chart_close = chart_open;
+        for (var i = 0; i < real_candles.length; i += 1) {
+          chart_min = Math.min(chart_min, real_candles[i][CANDLE_MIN]);
+          chart_max = Math.max(chart_max, real_candles[i][CANDLE_MAX]);
+          chart_close = real_candles[i][CANDLE_CLOSE];
+        }
+        var total_num_seconds = kNumSecondsInCandle * real_candles.length;
+
+        // Estimate random walk params by treating it as a normal distribution.
+        var normal_distribution_mean = chart_close - chart_open;
+        // ~3 sigmas
+        var normal_distribution_sigma = Math.abs(chart_max - chart_min) / 6;
+
+        console.log(chart_min, chart_max, chart_open, chart_close);
+
+        var random_walk_mean = normal_distribution_mean / total_num_seconds;
+        var random_walk_sigma = normal_distribution_sigma / Math.pow(total_num_seconds, 0.5);
+
+        var fake_data = generateRandomWalk(total_num_seconds, chart_open, random_walk_mean, random_walk_sigma);
+
+        var fake_candles = generateCandles(fake_data, kNumSecondsInCandle);
+        var fake_data_table = google.visualization.arrayToDataTable(fake_candles, /*opt_firstRowIsData=*/true);
+
+        var fake_chart = new google.visualization.CandlestickChart(document.getElementById('fake_chart_div'));
+        fake_chart.draw(fake_data_table);
+    });
+  }
+    </script>
+  </head>
+  <body>
+    <div id="real_chart_div" style="width: 90%; height: 90%;"></div>
+    <div id="fake_chart_div" style="width: 90%; height: 90%;"></div>
+
+  </body>
+</html>
